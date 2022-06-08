@@ -11,11 +11,24 @@ from pathlib import Path
 import regex as re
 import uuid
 import os
+from langdetect import detect
 
 BASE_DIR = Path(__file__).resolve().parent
 
 from rest_framework.decorators import api_view, renderer_classes, parser_classes
 from .renderers import MyXMLRenderer
+
+def filter_dummy_errors(original, error):
+
+    if '//' in error:
+        return (False, "")
+    elif error.split(" ") > 2:
+        return (False, "")
+    # Check if is not english
+    elif detect(error) != 'pl':
+        return (False, "")
+    
+    return (True, error)
 
 def get_context(line, start_index, end_index):
 
@@ -46,8 +59,10 @@ def diff_text(original, corrected):
             start_position = re.search('\[-([^\[]*?)\+}', line).start()
             end_position = re.search('\[-([^\[]*?)\+}', line).end()
 
-
-            output.append({'id': 'grammar-error', 'type': 'grammar', 'correction': added[0], 'context': f'{get_context(lines[idx], start_position, end_position)}', 'msg': f"Zamiana '{removed[0]}' na '{added[0]}'"})
+            is_error, error = filter_dummy_errors(removed, added)
+            
+            if is_error:
+                output.append({'id': 'grammar-error', 'type': 'grammar', 'correction': added[0], 'context': f'{get_context(lines[idx], start_position, end_position)}', 'msg': f"Zamiana '{removed[0]}' na '{added[0]}'"})
         
         removed = re.findall('\[\-(.*?)\-]', new_line)
         added = re.findall('{\+(.*?)\+}', new_line)
